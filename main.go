@@ -16,45 +16,76 @@ import (
 	nats "github.com/nats-io/nats.go"
 )
 
-const natsHost = "demo.nats.io"
-
 var group string
+var natsHost string
 var passHash = make([]byte, aes.BlockSize)
 
 var ciph cipher.Block
 
 var cur string
+var err error
+
+var srv *nats.Conn // Server instance
+var sub *nats.Subscription
+
+func setupServer() {
+	if srv != nil { // Reconnect
+		srv.Close()
+	}
+	err = fmt.Errorf("") // just to fill
+	for err != nil {
+		log.Printf("Connecting to %s...", natsHost)
+		srv, err = nats.Connect(
+			natsHost,
+			nats.Timeout(time.Second),
+			nats.ReconnectWait(time.Second),
+			nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
+				log.Printf("ERR disconnect from %s: %s", nc.ConnectedAddr(), err.Error())
+			}),
+			nats.ReconnectHandler(func(nc *nats.Conn) {
+				log.Printf("INFO: reconnecting to %s...", nc.ConnectedUrl())
+			}),
+		)
+		if err != nil {
+			time.Sleep(time.Second)
+			continue
+		}
+		log.Printf("Subscribing topic...")
+		sub, err = srv.SubscribeSync(group)
+	}
+}
+
+func setupKey(passwd string) {
+	sha := sha256.Sum256([]byte(passwd))
+	for k := range passHash {
+		passHash[k] = sha[k]
+	}
+}
 
 func main() {
 	var passwd string
 	flag.StringVar(&group, "g", "", "What device group exchange clipboard state updates")
 	flag.StringVar(&passwd, "p", "", "Password to encript the state updates")
+	flag.StringVar(&natsHost, "s", "demo.nats.io", "Nats server to use")
 	flag.Parse()
 	if len(group) == 0 || len(passwd) == 0 {
 		flag.Usage()
 		return
 	}
-	{
-		sha := sha256.Sum256([]byte(passwd))
-		for k := range passHash {
-			passHash[k] = sha[k]
-		}
-	}
 	group = fmt.Sprintf("__clipd__.%s", group)
-	var err error
-	log.Printf("Initializing...")
-	srv, err := nats.Connect(natsHost)
-	if err != nil {
-		panic(err)
-	}
-	log.Printf("Configuring...")
-	sub, err := srv.SubscribeSync(group)
-	if err != nil {
-		panic(err)
-	}
+	setupServer()
+	setupKey(passwd)
 	log.Printf("Starting the magic...")
 	for {
 		m, err := sub.NextMsg(time.Second)
+		// if err != nil { // debugging purposes
+		// 	println(err.Error())
+		// }
+		if err == nats.ErrInvalidConnection {
+			log.Printf("WARN: No connection to the server")
+			setupServer()
+			time.Sleep(time.Second)
+		}
 		if err == nats.ErrTimeout {
 			candidate, err := clipboard.ReadAll()
 			if err != nil {
