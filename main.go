@@ -124,6 +124,7 @@ func main() {
 			if err != nil {
 				log.Printf("ERR change clipboard: %s", err.Error())
 			}
+			cur = s
 		}
 	}
 }
