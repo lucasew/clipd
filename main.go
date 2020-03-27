@@ -27,8 +27,8 @@ var cur string
 
 func main() {
 	var passwd string
-	flag.StringVar(&group, "g", "", "Para qual grupo de dispositivos enviar e receber atualizações de estado")
-	flag.StringVar(&passwd, "p", "", "Senha para encriptar as atualizações de estado")
+	flag.StringVar(&group, "g", "", "What device group exchange clipboard state updates")
+	flag.StringVar(&passwd, "p", "", "Password to encript the state updates")
 	flag.Parse()
 	if len(group) == 0 || len(passwd) == 0 {
 		flag.Usage()
@@ -42,29 +42,29 @@ func main() {
 	}
 	group = fmt.Sprintf("__clipd__.%s", group)
 	var err error
-	log.Printf("Inicializando...")
+	log.Printf("Initializing...")
 	srv, err := nats.Connect(natsHost)
 	if err != nil {
 		panic(err)
 	}
-	log.Printf("Configurando servidor...")
+	log.Printf("Configuring...")
 	sub, err := srv.SubscribeSync(group)
 	if err != nil {
 		panic(err)
 	}
-	log.Printf("Iniciando a mágica...")
+	log.Printf("Starting the magic...")
 	for {
 		m, err := sub.NextMsg(time.Second)
 		if err == nats.ErrTimeout {
 			candidate, err := clipboard.ReadAll()
 			if err != nil {
-				log.Printf("ERRO ao obter clipboard: %s", err.Error())
+				log.Printf("ERR get clipboard: %s", err.Error())
 				continue
 			}
 			if strings.EqualFold(cur, candidate) {
 				continue
 			} else {
-				log.Printf("INFO: clipboard modificado localmente, refletindo alterações")
+				log.Printf("INFO: locally modified clipboard, sending update")
 				d, err := encrypt([]byte(candidate))
 				if err != nil {
 					log.Printf("ERRO: %s", err.Error())
@@ -76,22 +76,22 @@ func main() {
 			continue
 		}
 		if err != nil {
-			log.Printf("Erro ao escutar por mensagem: %s", err.Error())
+			log.Printf("ERR update listen: %s", err.Error())
 			continue
 		}
 		d, err := decrypt(m.Data)
 		if err != nil {
-			log.Printf("ERRO: %s", err.Error())
+			log.Printf("ERR: %s", err.Error())
 			continue
 		}
 		s := string(d)
 		if !strings.EqualFold(s, cur) {
 			//println(s)
 			//println(cur)
-			log.Printf("INFO: clipboard modificado remotamente, refletindo alterações")
+			log.Printf("INFO: remotely modified clipboard, aplying changes")
 			err = clipboard.WriteAll(s)
 			if err != nil {
-				log.Printf("Erro ao alterar clipboard: %s", err.Error())
+				log.Printf("ERR change clipboard: %s", err.Error())
 			}
 		}
 	}
