@@ -5,7 +5,7 @@ go 1.23.0
 
 require (
 	github.com/atotto/clipboard v0.1.4
-	github.com/nats-io/nats.go v1.43.0
+	github.com/nats-io/nats.go v1.44.0
 )
 
 require (
