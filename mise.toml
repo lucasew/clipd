@@ -1,0 +1,30 @@
+[tools]
+go = "1.24.0"
+ubi = "0.9.0"
+
+[tasks.install]
+run = "go mod download && mkdir -p bin && ubi --project lucasew/workspaced --in ./bin"
+sources = ["go.mod", "go.sum"]
+
+[tasks.codegen]
+run = "go generate ./..."
+sources = ["**/*.go"]
+
+[tasks.build]
+run = "go build -v ."
+sources = ["**/*.go", "go.mod", "go.sum"]
+
+[tasks.test]
+run = "go test ./..."
+sources = ["**/*.go"]
+
+[tasks.lint]
+run = "./bin/workspaced codebase lint"
+sources = ["**/*.go", "mise.toml"]
+
+[tasks.fmt]
+run = "./bin/workspaced codebase format"
+sources = ["**/*.go", "mise.toml"]
+
+[tasks.ci]
+depends = ["lint", "test", "build"]
