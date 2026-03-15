@@ -1,0 +1,1 @@
+- 2025-03-15: [DoS via panic/out-of-bounds array access on unvalidated remote input length]
