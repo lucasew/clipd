@@ -1,3 +1,6 @@
+// Package main implements a tool that synchronizes the system clipboard across devices
+// using NATS as the messaging fabric. Updates are symmetrically encrypted (AES-GCM)
+// before broadcast, ensuring secure state synchronization between end devices.
 package main
 
 import (
@@ -28,6 +31,10 @@ var err error
 var srv *nats.Conn // Server instance
 var sub *nats.Subscription
 
+// setupServer initializes or re-establishes the connection to the configured NATS server.
+// It modifies the global 'srv' and 'sub' variables as a side effect.
+// When called, it loops until a successful connection to the NATS host is achieved,
+// and subscribes to the device group topic. This ensures resilient connectivity.
 func setupServer() {
 	if srv != nil { // Reconnect
 		srv.Close()
@@ -55,6 +62,9 @@ func setupServer() {
 	}
 }
 
+// setupKey derives a deterministic 256-bit symmetric key from the provided password
+// to be used later in AES-GCM encryption/decryption cycles.
+// Side effect: overrides the globally allocated 'passHash' byte slice.
 func setupKey(passwd string) {
 	sha := sha256.Sum256([]byte(passwd))
 	for k := range passHash {
@@ -62,6 +72,9 @@ func setupKey(passwd string) {
 	}
 }
 
+// main is the CLI entrypoint. It parses configuration flags, initializes the network
+// and cryptographic state, and starts the infinite event loop handling both incoming NATS
+// state updates and outgoing local clipboard modifications.
 func main() {
 	var passwd string
 	flag.StringVar(&group, "g", "", "What device group exchange clipboard state updates")
@@ -128,6 +141,11 @@ func main() {
 		}
 	}
 }
+
+// encrypt converts plaintext clipboard data into an AES-GCM encrypted payload,
+// prepending a randomly generated nonce to the ciphertext for proper decryption.
+// This ensures that state updates sent over the wire cannot be easily read
+// or tampered with by the NATS broker or intermediate network elements.
 func encrypt(data []byte) ([]byte, error) {
 	block, err := aes.NewCipher(passHash)
 	if err != nil {
@@ -145,6 +163,9 @@ func encrypt(data []byte) ([]byte, error) {
 	return ciphertext, nil
 }
 
+// decrypt extracts the prepended nonce and converts an AES-GCM ciphertext payload
+// back into plaintext clipboard data, verifying message integrity and authenticity
+// using the globally derived symmetric key.
 func decrypt(data []byte) ([]byte, error) {
 	key := []byte(passHash)
 	block, err := aes.NewCipher(key)
