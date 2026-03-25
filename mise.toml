@@ -1,0 +1,10 @@
+[tools]
+go = "1.24.0"
+"ubi:lucasew/workspaced" = "0.2.3"
+
+[tasks]
+install = "go mod download"
+fmt = "go fmt ./..."
+lint = "go vet ./..."
+test = "go test -v ./..."
+ci = { depends = ["install", "fmt", "lint", "test"] }
